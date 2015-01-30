@@ -19,11 +19,9 @@
 #+SELECT_TAGS: export
 #+STARTUP: hidestars beamer
 #+LaTeX_HEADER: \usemintedstyle{colorful}
-#+latex_header: \mode<beamer>{\usetheme{warsaw}}
+#+latex_header: \mode<beamer>{\usetheme{Warsaw}}
 
-* Introduction 
-
-** Overview
+* Overview
 
 *** Functional Pearl
     Functional Pearl started appearing in /Journal of Functional Programming
@@ -57,6 +55,8 @@
      [08, 23, 09, 00, 12, 11, 01, 10, 13, 07, 41, 04, 14]
 #+END_SRC
 
+** Naive Solution
+
 *** Naive Solution
 
     A simple solution will be to take a list [0..] and find the first missing
@@ -75,6 +75,8 @@ us \\ vs = filter (not . flip elem vs) us
 
     But this would be inefficient $O(n^2)$
 
+* Using Array
+
 *** Using Array
 
     Can we improve the previous solution. Let's use /Data.Array/.
@@ -84,7 +86,8 @@ minfree :: [Int] -> Int
 minfree = search . checklist
 #+END_SRC
 
-*** Using Array : Creating Array (/Array Int Bool/)
+** Creating Array
+*** Using Array : Creating Array
     *checklist* creates an array, X from $[0..n]$ such that $X[i] = True$ if i is
     present in the input. 
 
@@ -101,7 +104,7 @@ checklist xs = accumArray (||) False range falseList
     /accumArray/ is a function which creates array with a default value (*False*)
     in above case. And for each input (index, value) pair, calls a given
     function to set a value.
-
+** Searching for minimum
 *** Using Array : Searching for minimum
 
    *search* simply converts array into the list till it encounters first *False*
@@ -115,7 +118,7 @@ search = length . takeWhile id . elems
    length of the list in the search will be the missing value.
 
 
-** Divide and Conquer
+* Divide and Conquer
 
 *** Divide and Conquer
    Here we apply well known divide & conquer technique, using the same
@@ -125,8 +128,11 @@ search = length . takeWhile id . elems
 #+BEGIN_SRC haskell
   minfree xs = minfree (as ++ bs ) = 
     somefunc (minfree as) (minfree bs)
+        where
+          xs = as ++ bs
 #+END_SRC 
 
+** Rules of division
 *** Rules of division
 
     Let's observe some rules for finding difference *\\*. These rules are
@@ -151,7 +157,7 @@ as \\ (bs ++ cs) = (as \\ bs) \\ cs
     (as \\ us \\ vs) ++ (bs \\ us \\ vs)
 #+END_SRC
 
-    Suppose $as$ and $vs$ are disjoint i.e. $as \\ vs = as$ . Similarly if $bs$
+    Suppose $as$ and $vs$ are disjoint i.e. /as \\ vs = as/ . Similarly if $bs$
     and $us$ are disjoint, then
 
 **** Division Rule
@@ -160,7 +166,7 @@ as \\ (bs ++ cs) = (as \\ bs) \\ cs
   (as ++ bs) \\ (us ++ vs) = as \\ us ++ bs \\ vs
 #+END_SRC
 
-
+** Partitioning Input
 *** Partitioning input
 
     We can partition input around some number $b$ such that we can choose /as/,
@@ -176,7 +182,8 @@ vs = filter (>= b) input
 #+END_SRC    
 
 
-*** Back to /minfree/
+** Implementation
+*** Back to minfree
 
 **** Rewriting minfree using rules
 #+BEGIN_SRC haskell
@@ -188,7 +195,7 @@ vs = filter (>= b) input
       (us, vs) = partiion (< b) xs
 #+END_SRC
 
-*** Back to /minfree/
+*** Back to minfree
 **** Selecting the missing number
 
 #+BEGIN_SRC haskell
@@ -199,7 +206,7 @@ vs = filter (>= b) input
       head (as \\ us)
 #+END_SRC
 
-*** Back to /minfree/
+*** Back to minfree
 
 **** Checking null is easy
      Just check if size of the partitioned input is same as partitioning element.
@@ -208,8 +215,7 @@ vs = filter (>= b) input
   null ([0..(b-1)] \\ us) = length us == b
 #+END_SRC
 
-
-*** Back to /minfree/
+*** Back to minfree
 
     Modifying a little, we can write /minfrom/ using explicit range [a..b] to
     generalize the function.
@@ -222,6 +228,51 @@ vs = filter (>= b) input
                | length us == (b -a) = minfrom b vs
                | otherwise           = minfrom a us
     where
-      b = a + length xs `div` 2
+      b = a + 1 + length xs `div` 2
       (us, vs) = partition (< b) xs
 #+END_SRC
+
+*** Further optimization
+
+    We can further save on calculating length of list 
+
+**** 
+#+BEGIN_SRC haskell
+  minfree xs = minfrom 0 (length xs, xs)
+
+  minfrom a (n, xs) | null xs     = a
+                    | m == (b -a) = minfrom b (n -m, vs)
+                    | otherwise   = minfrom a (m, us)
+      where
+        b = a + 1 + n `div` 2
+        (us, vs) = partition (< b) xs
+        m = length us
+                   
+#+END_SRC
+
+
+
+* Conclusion 
+
+  
+*** Conclusion
+    
+**** 
+     When seeking $\theta(n)$ algorithm involving list of $n$
+     elements, it is tempting to head at once for a method that
+     processes each element of the list in constant time, or at least
+     in amortized constant time. 
+
+     Here, dividing input into half at each stage is also good
+     enough. 
+
+
+**** 
+     A pure functional programmer does not assume the existence of
+     arrays with constant time update operation. 
+
+     This explains why there sometimes seems to be a logarithmic gap
+     between the best functional and procedural soltions. But
+     sometimes, as here, gap vanishes on a closer inspection. 
+
+
