@@ -1,0 +1,227 @@
+#+LaTeX_CLASS: beamer
+#+LaTeX_CLASS_OPTIONS: [presentation]
+#+BEAMER_THEME: default
+#+COLUMNS: %45ITEM %10BEAMER_env(Env) %10BEAMER_act(Act) %4BEAMER_col(Col) %8BEAMER_opt(Opt)
+#+PROPERTY: BEAMER_col_ALL 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 0.0 :ETC
+#+TITLE: Functional Pearl - The Smallest Free Number
+#+DATE: 31st January, 2015
+#+AUTHOR: Yogesh Sajanikar
+#+EMAIL: yogesh_sajanikar@yahoo.com
+#+OPTIONS: ':nil *:t -:t ::t <:t H:3 \n:nil ^:t arch:headline author:t c:nil
+#+OPTIONS: creator:comment d:(not "LOGBOOK") date:t e:t email:nil f:t inline:t
+#+OPTIONS: num:t p:nil pri:nil stat:t tags:t tasks:t tex:t timestamp:t toc:t
+#+OPTIONS: todo:t |:t
+#+CREATOR: Emacs 24.3.1 (Org mode 8.2.10)
+#+DESCRIPTION:
+#+EXCLUDE_TAGS: noexport
+#+KEYWORDS:
+#+LANGUAGE: en
+#+SELECT_TAGS: export
+#+STARTUP: hidestars beamer
+#+LaTeX_HEADER: \usemintedstyle{colorful}
+#+latex_header: \mode<beamer>{\usetheme{warsaw}}
+
+* Introduction 
+
+** Overview
+
+*** Functional Pearl
+    Functional Pearl started appearing in /Journal of Functional Programming
+    (JFP)/. Upon request by Simon Peyton Jones and Phill Wadler, *Richard Bird*
+    started this column. 
+
+    This column was inspired by /Jon Bentley's/ programming pearl whose idea was:
+    
+**** Jon Bentley's Programming Pearls
+
+     Just as natural pearls grow from grains of sand that have irritated oysters,
+     these programming pearls have grown from real problems that have irritated
+     programmers. The programs are fun, and they teach important programming
+     techniques and fundamental design prinsciples. 
+
+
+** Smallest Free Number
+
+*** Smallest Free Number
+    Suppose we have a set of numbered tasks in use. We need to find the first
+    available slot where we can put a new queued task. We can simplify this
+    problem.
+    
+**** Problem
+     Compute the smallest natural number not in a given finite set X of natural
+     numbers without duplicates.  
+
+**** Sample Input
+
+#+BEGIN_SRC haskell
+     [08, 23, 09, 00, 12, 11, 01, 10, 13, 07, 41, 04, 14]
+#+END_SRC
+
+*** Naive Solution
+
+    A simple solution will be to take a list [0..] and find the first missing
+    number in the given list.
+
+#+BEGIN_SRC haskell
+minfree :: [Int] -> Int
+minfree xs = head ( [0..]  \\ xs )
+#+END_SRC
+
+    Find difference between first and second list.
+#+BEGIN_SRC haskell
+(\\) :: Eq a => [a] -> [a] -> [a]
+us \\ vs = filter (not . flip elem vs) us
+#+END_SRC
+
+    But this would be inefficient $O(n^2)$
+
+*** Using Array
+
+    Can we improve the previous solution. Let's use /Data.Array/.
+
+#+BEGIN_SRC haskell
+minfree :: [Int] -> Int
+minfree = search . checklist
+#+END_SRC
+
+*** Using Array : Creating Array (/Array Int Bool/)
+    *checklist* creates an array, X from $[0..n]$ such that $X[i] = True$ if i is
+    present in the input. 
+
+#+BEGIN_SRC haskell
+checklist :: [Int] -> Array Int Bool
+checklist xs = accumArray (||) False range falseList
+  where
+    n = length xs
+    range = (0, n)
+    filterN = filter (<= n)
+    falseList = zip (filterN xs) (repeat True)
+#+END_SRC
+
+    /accumArray/ is a function which creates array with a default value (*False*)
+    in above case. And for each input (index, value) pair, calls a given
+    function to set a value.
+
+*** Using Array : Searching for minimum
+
+   *search* simply converts array into the list till it encounters first *False*
+   in the list.
+
+#+BEGIN_SRC haskell
+search :: Array Int Bool -> Int
+search = length . takeWhile id . elems
+#+END_SRC
+
+   length of the list in the search will be the missing value.
+
+
+** Divide and Conquer
+
+*** Divide and Conquer
+   Here we apply well known divide & conquer technique, using the same
+   expressiveness of Haskell.
+
+   We want to write, /minfree/ as 
+#+BEGIN_SRC haskell
+  minfree xs = minfree (as ++ bs ) = 
+    somefunc (minfree as) (minfree bs)
+#+END_SRC 
+
+*** Rules of division
+
+    Let's observe some rules for finding difference *\\*. These rules are
+    similar to union and difference laws for sets. 
+
+**** Rules for division
+#+BEGIN_SRC haskell
+(as ++ bs) \\ cs = (as \\ cs) ++ (bs \\ cs)
+
+as \\ (bs ++ cs) = (as \\ bs) \\ cs
+
+(as \\ bs) \\ cs = as \\ (bs \\ cs)
+#+END_SRC
+
+
+*** Derived Rules
+
+    Consider,
+
+#+BEGIN_SRC haskell
+  (as ++ bs) \\ (us ++ vs) = 
+    (as \\ us \\ vs) ++ (bs \\ us \\ vs)
+#+END_SRC
+
+    Suppose $as$ and $vs$ are disjoint i.e. $as \\ vs = as$ . Similarly if $bs$
+    and $us$ are disjoint, then
+
+**** Division Rule
+
+#+BEGIN_SRC haskell
+  (as ++ bs) \\ (us ++ vs) = as \\ us ++ bs \\ vs
+#+END_SRC
+
+
+*** Partitioning input
+
+    We can partition input around some number $b$ such that we can choose /as/,
+    /bs/, /us/ and /vs/.
+
+**** 
+#+BEGIN_SRC haskell
+as = [0.. (b-1)]
+bs = [b..]
+
+us = filter (< b) input
+vs = filter (>= b) input
+#+END_SRC    
+
+
+*** Back to /minfree/
+
+**** Rewriting minfree using rules
+#+BEGIN_SRC haskell
+  minfree xs = 
+    select  (as \\ us) (bs \\ vs)
+    where
+      as = [0 .. (b-1)]
+      bs = [b..]
+      (us, vs) = partiion (< b) xs
+#+END_SRC
+
+*** Back to /minfree/
+**** Selecting the missing number
+
+#+BEGIN_SRC haskell
+  select (as \\ us) (ys \\ vs) =
+    if null (as \\ us) then
+      head ( ys \\ vs)
+    else
+      head (as \\ us)
+#+END_SRC
+
+*** Back to /minfree/
+
+**** Checking null is easy
+     Just check if size of the partitioned input is same as partitioning element.
+
+#+BEGIN_SRC haskell
+  null ([0..(b-1)] \\ us) = length us == b
+#+END_SRC
+
+
+*** Back to /minfree/
+
+    Modifying a little, we can write /minfrom/ using explicit range [a..b] to
+    generalize the function.
+
+**** 
+#+BEGIN_SRC haskell
+  minfree xs = minfrom 0 xs
+
+  minfrom a xs | null xs             = a
+               | length us == (b -a) = minfrom b vs
+               | otherwise           = minfrom a us
+    where
+      b = a + length xs `div` 2
+      (us, vs) = partition (< b) xs
+#+END_SRC
